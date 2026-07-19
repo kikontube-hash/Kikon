@@ -1,20 +1,454 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kikon TV</title>
-<style>
-body {background:#0a0a0a; color:white; text-align:center; padding:50px; font-family:Tahoma}
-h1 {color:#00ff88; font-size:40px}
-.box {background:#1a1a1a; padding:30px; border-radius:20px; max-width:500px; margin:auto}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تلفاز العرب الذكي - مشغل IPTV الاحترافي</title>
+  
+  <!-- خط Cairo الأنيق وخط JetBrains Mono للبيانات -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- مكتبة تشغيل البث المباشر HLS -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  
+  <!-- مكتبة Tailwind CSS للتصميم العصري -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Cairo', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* تخصيص أشرطة التمرير */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3f3f46;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeIn {
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+  </style>
 </head>
-<body>
-<div class="box">
-<h1>مرحبا في Kikon TV 🚀</h1>
-<p>هنا تقدر تكتب أي حاجة</p>
-<p>بغيتي تبدل النص؟ ضغط على قلم التعديل فـ GitHub</p>
-</div>
+<body class="bg-[#07080c] text-zinc-100 font-sans min-h-screen flex flex-col">
+
+  <!-- شريط العنوان الرئيسي -->
+  <header class="border-b border-zinc-900 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 px-4 py-3 lg:px-8 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-emerald-400 flex items-center justify-center text-zinc-950 shadow-lg shadow-emerald-500/20 text-xl font-bold">
+        📺
+      </div>
+      <div>
+        <h1 class="text-sm lg:text-base font-black tracking-tight flex items-center gap-1.5">
+          <span>تلفاز العرب الذكي</span>
+          <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded-full border border-emerald-500/25">IPTV Player</span>
+        </h1>
+        <p class="text-[10px] lg:text-xs text-zinc-500 font-medium">مشغل متطور للبث المباشر مع استرجاع تلقائي للقنوات المعطلة</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 text-xs">
+      <div class="bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-zinc-400">القنوات:</span>
+        <span id="globalChannelCount" class="font-bold font-mono text-zinc-100">0</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- الجسم الرئيسي للتطبيق -->
+  <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+    
+    <!-- قسم المشغل (الجهة اليمنى) -->
+    <section class="col-span-1 lg:col-span-7 flex flex-col bg-zinc-950 border-l border-zinc-900/80 sticky top-0 lg:relative z-40">
+      
+      <!-- شاشة الفيديو -->
+      <div class="w-full aspect-video bg-black relative group" id="videoContainer">
+        <video id="videoPlayer" class="w-full h-full object-contain cursor-pointer" controls autoplay playsinline></video>
+        
+        <!-- واجهة الانتظار قبل اختيار القناة -->
+        <div id="playerPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 text-center p-6 z-10">
+          <span class="text-5xl mb-4 animate-pulse">▶</span>
+          <h3 class="text-xl font-bold text-zinc-100">مشغل القنوات الذكي</h3>
+          <p class="text-sm text-zinc-400 max-w-md mt-2">الرجاء اختيار باقة من الأسفل للبدء في تشغيل البث المباشر فوراً.</p>
+        </div>
+
+        <!-- واجهة جاري التحميل -->
+        <div id="playerLoadingOverlay" class="absolute inset-0 hidden flex-col items-center justify-center bg-black/80 backdrop-blur-sm z-20">
+          <div class="w-12 h-12 rounded-full border-4 border-zinc-800 border-t-emerald-400 animate-spin mb-3"></div>
+          <p class="text-emerald-400 font-medium text-sm animate-pulse">جاري جلب البث وتحضير التردد...</p>
+        </div>
+
+        <!-- واجهة حدوث خطأ أو قناة معطلة -->
+        <div id="playerErrorOverlay" class="absolute inset-0 hidden flex-col items-center justify-center bg-zinc-950/95 p-6 text-center z-20 border-2 border-dashed border-red-500/20 m-2 rounded-xl">
+          <span class="text-4xl mb-3 animate-bounce">⚠️</span>
+          <h4 class="text-lg font-bold text-zinc-100">البث غير متاح حالياً</h4>
+          <p id="errorMsgText" class="text-xs text-red-400 font-mono mt-1 bg-red-950/40 px-3 py-1 rounded-full border border-red-900/30">خطأ في الاتصال بالخادم</p>
+          <p class="text-sm text-emerald-400 font-semibold animate-pulse flex items-center gap-1.5 justify-center mt-4">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+            جاري فحص وتخطي القناة تلقائياً للعثور على بث يعمل...
+          </p>
+        </div>
+      </div>
+
+      <!-- لوحة التحكم السفلى والمعلومات -->
+      <div class="p-4 lg:p-6 flex-1 overflow-y-auto space-y-5 bg-gradient-to-b from-zinc-950 to-zinc-900/40">
+        
+        <!-- الباقات الجاهزة والمحدثة تلقائياً -->
+        <div>
+          <span class="text-xs text-zinc-400 font-semibold flex items-center gap-1.5 mb-2">✨ الباقات الجاهزة للتحديث بنقرة واحدة:</span>
+          <div class="flex gap-2.5 overflow-x-auto pb-2" id="presetsContainer"></div>
+        </div>
+
+        <!-- تصنيفات ومجموعات الباقة الحالية -->
+        <div id="groupSelectorSection" class="hidden">
+          <span class="text-xs text-zinc-400 font-semibold flex items-center gap-1.5 mb-2">📂 تصنيفات القائمة النشطة:</span>
+          <div class="flex gap-2 overflow-x-auto pb-2" id="groupsContainer"></div>
+        </div>
+
+        <!-- إشعار الميزات الذكية -->
+        <div class="p-3.5 bg-zinc-900/35 border border-zinc-800 rounded-xl">
+          <h4 class="text-xs font-bold text-zinc-300 flex items-center gap-1.5">💡 نظام المشاهدة المتواصلة (الاسترجاع الذكي):</h4>
+          <p class="text-[11px] text-zinc-500 leading-relaxed mt-1">
+            يقوم هذا المشغل الذكي بمراقبة تدفق البيانات وتخطي أي قناة معطلة أو مشفرة خلال 8 ثوانٍ تلقائياً والانتقال للقناة التالية لضمان تجربة عائلية ممتعة وسلسة خالية من التقطيع.
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- قسم قائمة القنوات والبحث (الجهة اليسرى) -->
+    <section class="col-span-1 lg:col-span-5 h-[500px] lg:h-[calc(100vh-65px)] flex flex-col bg-zinc-950/60 border-t lg:border-t-0 border-zinc-900">
+      
+      <!-- شريط البحث السريع -->
+      <div class="p-3 bg-zinc-950/40 border-b border-zinc-900 flex flex-col gap-2">
+        <input 
+          type="text" 
+          id="searchInput" 
+          placeholder="بحث سريع في أسماء القنوات المتوفرة..." 
+          class="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-xs text-zinc-100 outline-none focus:border-emerald-500 transition-all"
+          oninput="filterChannels()"
+        >
+      </div>
+
+      <!-- حاوي القنوات مع ميزة التمرير اللانهائي -->
+      <div class="flex-1 overflow-y-auto p-2 space-y-1.5" id="channelsContainer">
+        <div class="text-center py-12 text-zinc-500">
+          <p class="text-xs font-semibold">الرجاء تحديد أحد الباقات لبدء التحميل...</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // تكوين الباقات الحصرية المختارة (رياضة، أفلام، كبار، أفريقيا، بث عربي)
+    const PRESET_PLAYLISTS = [
+      {
+        id: 'arabic',
+        nameAr: 'البث العربي المباشر',
+        nameEn: 'Arabic Streams',
+        url: 'https://iptv-org.github.io/iptv/languages/ara.m3u',
+        icon: '🌍'
+      },
+      {
+        id: 'movies',
+        nameAr: 'أفلام وسينما',
+        nameEn: 'Movies',
+        url: 'https://iptv-org.github.io/iptv/categories/movies.m3u',
+        icon: '🎬'
+      },
+      {
+        id: 'sports',
+        nameAr: 'الرياضة العالمية',
+        nameEn: 'Sports',
+        url: 'https://iptv-org.github.io/iptv/categories/sports.m3u',
+        icon: '⚽'
+      },
+      {
+        id: 'africa',
+        nameAr: 'القنوات الأفريقية',
+        nameEn: 'Africa',
+        url: 'https://iptv-org.github.io/iptv/regions/afr.m3u',
+        icon: '🦁'
+      },
+      {
+        id: 'xxx',
+        nameAr: 'محتوى للكبار (+18)',
+        nameEn: 'Adult Content (+18)',
+        url: 'http://adultiptv.net/chs.m3u',
+        icon: '🔞'
+      }
+    ];
+
+    let channels = [];
+    let filteredChannels = [];
+    let activeChannel = null;
+    let activeGroup = 'all';
+    let hlsInstance = null;
+    let fallbackTimeout = null;
+
+    // تهيئة الباقات عند بدء التشغيل
+    function init() {
+      const presetsDiv = document.getElementById('presetsContainer');
+      presetsDiv.innerHTML = PRESET_PLAYLISTS.map(p => `
+        <button onclick="loadPlaylist('${p.id}')" id="btn-${p.id}" class="shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl border border-zinc-800/80 bg-zinc-900/45 text-zinc-300 hover:bg-zinc-850 hover:text-zinc-100 transition-all cursor-pointer">
+          <span class="text-lg">${p.icon}</span>
+          <div class="text-right">
+            <div class="text-xs font-bold">${p.nameAr}</div>
+            <div class="text-[9px] text-zinc-500 font-mono">${p.nameEn}</div>
+          </div>
+        </button>
+      `).join('');
+
+      // تحميل البث العربي كافتراضي
+      loadPlaylist('arabic');
+    }
+
+    // جلب بيانات ملف الـ M3U مع كسر قيود CORS تلقائياً
+    async function fetchPlaylistData(url) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) return await res.text();
+      } catch (e) {}
+
+      try {
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+        const res = await fetch(proxyUrl);
+        if (res.ok) return await res.text();
+      } catch (e) {}
+
+      const backupProxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+      const res = await fetch(backupProxy);
+      return await res.text();
+    }
+
+    // تحليل ملفات M3U
+    function parseM3U(text) {
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const parsed = [];
+      let current = null;
+
+      for (let line of lines) {
+        if (line.startsWith('#EXTINF:')) {
+          current = {};
+          const nameMatch = line.match(/,(.+)$/);
+          current.name = nameMatch ? nameMatch[1].trim() : 'قناة غير معروفة';
+          const logoMatch = line.match(/tvg-logo="([^"]*)"/i);
+          current.logo = logoMatch ? logoMatch[1] : '';
+          const groupMatch = line.match(/group-title="([^"]*)"/i);
+          current.group = groupMatch ? groupMatch[1].trim() : 'باقات عامة';
+        } else if (line.startsWith('http://') || line.startsWith('https://')) {
+          if (current) {
+            current.url = line;
+            current.id = parsed.length;
+            parsed.push(current);
+            current = null;
+          }
+        }
+      }
+      return parsed;
+    }
+
+    // تحميل باقة كاملة
+    async function loadPlaylist(id) {
+      const playlist = PRESET_PLAYLISTS.find(p => p.id === id);
+      if (!playlist) return;
+
+      // تعديل حالة الأزرار لتوضيح الباقة المحددة
+      PRESET_PLAYLISTS.forEach(p => {
+        const btn = document.getElementById(`btn-${p.id}`);
+        if (btn) {
+          if (p.id === id) {
+            btn.className = "shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl border border-emerald-500 bg-emerald-500/10 text-emerald-400 transition-all cursor-pointer scale-105";
+          } else {
+            btn.className = "shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-xl border border-zinc-800/80 bg-zinc-900/45 text-zinc-300 hover:bg-zinc-850 hover:text-zinc-100 transition-all cursor-pointer";
+          }
+        }
+      });
+
+      document.getElementById('playerLoadingOverlay').classList.remove('hidden');
+      document.getElementById('playerLoadingOverlay').classList.add('flex');
+
+      try {
+        const text = await fetchPlaylistData(playlist.url);
+        channels = parseM3U(text);
+        document.getElementById('globalChannelCount').textContent = channels.length;
+        
+        activeGroup = 'all';
+        buildGroups();
+        filterChannels();
+        
+        if (channels.length > 0) {
+          playChannel(channels[0].id);
+        }
+      } catch (err) {
+        alert('تعذر تحميل القنوات، يرجى التحقق من اتصالك بالإنترنت.');
+      } finally {
+        document.getElementById('playerLoadingOverlay').classList.remove('flex');
+        document.getElementById('playerLoadingOverlay').classList.add('hidden');
+      }
+    }
+
+    // بناء قائمة المجموعات والتصنيفات
+    function buildGroups() {
+      const groupsSet = new Set();
+      channels.forEach(ch => { if (ch.group) groupsSet.add(ch.group); });
+      const groups = Array.from(groupsSet).sort();
+
+      const container = document.getElementById('groupsContainer');
+      const section = document.getElementById('groupSelectorSection');
+      
+      if (groups.length <= 1) {
+        section.classList.add('hidden');
+        return;
+      }
+      section.classList.remove('hidden');
+
+      let html = `
+        <button onclick="setGroup('all')" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border ${activeGroup === 'all' ? 'bg-emerald-500 text-zinc-950 border-emerald-500' : 'bg-zinc-900 border-zinc-800 text-zinc-400'} cursor-pointer">الكل</button>
+      `;
+      groups.forEach(g => {
+        html += `
+          <button onclick="setGroup('${g}')" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border ${activeGroup === g ? 'bg-emerald-500 text-zinc-950 border-emerald-500' : 'bg-zinc-900 border-zinc-800 text-zinc-400'} cursor-pointer">${g}</button>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    function setGroup(g) {
+      activeGroup = g;
+      buildGroups();
+      filterChannels();
+    }
+
+    // فلترة القنوات وعرضها في القائمة الجانبية
+    function filterChannels() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      filteredChannels = channels.filter(ch => {
+        const matchGroup = activeGroup === 'all' || ch.group === activeGroup;
+        const matchSearch = !search || ch.name.toLowerCase().includes(search);
+        return matchGroup && matchSearch;
+      });
+
+      const container = document.getElementById('channelsContainer');
+      if (filteredChannels.length === 0) {
+        container.innerHTML = `<div class="text-center py-12 text-zinc-500 text-xs">لا توجد قنوات مطابقة للبحث</div>`;
+        return;
+      }
+
+      container.innerHTML = filteredChannels.slice(0, 100).map(ch => `
+        <div onclick="playChannel(${ch.id})" class="flex items-center justify-between gap-3 p-2.5 rounded-xl border ${activeChannel && activeChannel.id === ch.id ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300' : 'bg-zinc-900/35 border-zinc-800/50 text-zinc-300 hover:bg-zinc-850'} cursor-pointer transition-all">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="w-9 h-9 bg-zinc-950 rounded-lg overflow-hidden flex items-center justify-center text-xs font-bold text-zinc-500 border border-zinc-800">
+              ${ch.logo ? `<img src="${ch.logo}" class="w-full h-full object-contain p-1" onerror="this.style.display='none'">` : ch.name.slice(0,1)}
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-bold truncate">${ch.name}</p>
+              <p class="text-[10px] text-zinc-500 truncate mt-0.5">${ch.group || 'باقة عامة'}</p>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // تشغيل القناة المحددة وحقن الرابط في فيديو المشغل
+    function playChannel(id) {
+      const ch = channels.find(c => c.id === id);
+      if (!ch) return;
+
+      activeChannel = ch;
+      filterChannels();
+
+      document.getElementById('playerPlaceholder').classList.add('hidden');
+      document.getElementById('playerErrorOverlay').classList.add('hidden');
+      
+      const overlay = document.getElementById('playerLoadingOverlay');
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+
+      if (fallbackTimeout) clearTimeout(fallbackTimeout);
+
+      // فحص جودة وتشغيل القناة وتخطيها تلقائياً إذا فشلت خلال 8 ثوانٍ
+      fallbackTimeout = setTimeout(() => {
+        handleStreamFailed();
+      }, 8000);
+
+      const video = document.getElementById('videoPlayer');
+
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+
+      if (ch.url.includes('m3u8') && Hls.isSupported()) {
+        hlsInstance = new Hls();
+        hlsInstance.loadSource(ch.url);
+        hlsInstance.attachMedia(video);
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+          clearTimeout(fallbackTimeout);
+          overlay.classList.add('hidden');
+        });
+        hlsInstance.on(Hls.Events.ERROR, (e, data) => {
+          if (data.fatal) {
+            handleStreamFailed();
+          }
+        });
+      } else {
+        video.src = ch.url;
+        video.play().then(() => {
+          clearTimeout(fallbackTimeout);
+          overlay.classList.add('hidden');
+        }).catch(() => {});
+      }
+    }
+
+    // منطق التخطي التلقائي في حال تعطل البث المباشر
+    function handleStreamFailed() {
+      if (fallbackTimeout) clearTimeout(fallbackTimeout);
+      document.getElementById('playerLoadingOverlay').classList.add('hidden');
+      
+      const errOverlay = document.getElementById('playerErrorOverlay');
+      errOverlay.classList.remove('hidden');
+      errOverlay.classList.add('flex');
+
+      if (filteredChannels.length <= 1) return;
+
+      const currentIndex = filteredChannels.findIndex(c => c.id === activeChannel.id);
+      const nextIndex = (currentIndex + 1) % filteredChannels.length;
+      const nextChannel = filteredChannels[nextIndex];
+
+      setTimeout(() => {
+        playChannel(nextChannel.id);
+      }, 2000); // الانتقال خلال ثانيتين بسلاسة
+    }
+
+    // بدء تشغيل التطبيق
+    window.onload = init;
+  </script>
 </body>
 </html>
